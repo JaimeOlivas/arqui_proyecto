@@ -44,16 +44,16 @@ static const char *TAG = "example";
 // Bit number used to represent command and parameter
 #define EXAMPLE_LCD_CMD_BITS           8
 #define EXAMPLE_LCD_PARAM_BITS         8
+
 #define S_IN    PIN18 //SW1
 #define S_OUT   PIN19 //SW2
-//#define TEMCOR  PIN2
 #define MODEP    PIN26
 #define COOLP    PIN27
 #define BTN_ENC PIN4  
 #define LED_ENC PIN5
 #define DOOR    PIN16
 #define FAN     PIN17
-#define ITERACIONES 250
+
 #define SP      27
 #define RED     PIN14
 #define GREEN   PIN13
@@ -75,7 +75,6 @@ void init_io(void){
     gpio_write(RED, HIGH);
     gpio_write(GREEN, HIGH);
     gpio_write(BLUE, HIGH);
-    //gpio_write(TEMCOR, LOW);
     gpio_write(LED_ENC, LOW);
     gpio_write(DOOR, LOW);
     gpio_write(FAN, LOW);
@@ -201,7 +200,7 @@ void app_main(void)
     /* Rotation of the screen */
    /// lv_disp_set_rotation(disp, LV_DISP_ROT_NONE);
 
-   //ESP_LOGI(TAG, "Display LVGL Scroll Text");
+
     lv_obj_t *scr = lv_disp_get_scr_act(disp);
     lv_obj_t *label = lv_label_create(scr);
     lv_label_set_text(label, "Sistema: OFF\0");
@@ -233,6 +232,7 @@ void app_main(void)
                 vTaskDelay(10/ (( TickType_t ) 1000 / 100));    
                 FLAG_ENC = false;
                 gpio_write(LED_ENC, LOW);
+                gpio_write(DOOR, LOW);
             }
             while(gpio_read(BTN_ENC) == 0X00);   
 
@@ -261,8 +261,6 @@ void app_main(void)
             y = (1.0/298.15) + (y *(1.0/4050.0));
             TEMPAMB = 1.0/y;
             TEMPAMB = TEMPAMB -273.15;  //debe ser temperatura del lm
-           // printf("TEMPCOR = %0.2f\n\r", TEMPCOR);
-           // vTaskDelay(1000/ (( TickType_t ) 1000 / 100));
 
             if(gpio_read(S_IN) == 0X00){
 
@@ -272,7 +270,7 @@ void app_main(void)
                     status = dato;
                     uart_write_bytes(UART_NUM_0, status, strlen(status));
                     vTaskDelay(10/ (( TickType_t ) 1000 / 100)); 
-                    gpio_write(LED_ENC, HIGH);  
+                    gpio_write(DOOR, HIGH); 
                     esp_lcd_panel_reset(panel_handle);
                     lv_label_set_text(label, "SISTEMA: ON\nDOOR: open\0");
                     vTaskDelay(5000/ (( TickType_t ) 1000 / 100));
@@ -281,7 +279,7 @@ void app_main(void)
                     vTaskDelay(10/ (( TickType_t ) 1000 / 100));
                     esp_lcd_panel_reset(panel_handle); 
                     lv_label_set_text(label, "SISTEMA: ON\nDOOR: closed\0");
-
+                    gpio_write(DOOR, LOW);
                 }else if (people_in == MAX_PEOPLE && TEMPCOR < MAX_TEMP && TEMPCOR > MIN_TEMP){
                     status = "WE ARE FULL WAIT\n\r";
                     uart_write_bytes(UART_NUM_0, status, strlen(status));
