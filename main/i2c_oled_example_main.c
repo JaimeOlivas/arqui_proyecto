@@ -46,13 +46,15 @@ static const char *TAG = "example";
 #define EXAMPLE_LCD_PARAM_BITS         8
 #define S_IN    PIN18 //SW1
 #define S_OUT   PIN19 //SW2
-#define TEMCOR  PIN2
-#define BTN_ENC PIN4
+//#define TEMCOR  PIN2
+#define MODEP    PIN26
+#define COOLP    PIN27
+#define BTN_ENC PIN4  
 #define LED_ENC PIN5
 #define DOOR    PIN16
 #define FAN     PIN17
 #define ITERACIONES 250
-
+#define SP      27
 #define RED     PIN14
 #define GREEN   PIN13
 #define BLUE    PIN12
@@ -60,17 +62,20 @@ void init_io(void){
     gpio_pinMode(RED, OUTPUT);
     gpio_pinMode(GREEN, OUTPUT);
     gpio_pinMode(BLUE, OUTPUT);
+
     gpio_pinMode(LED_ENC, OUTPUT);
     gpio_pinMode(DOOR, OUTPUT);
     gpio_pinMode(FAN, OUTPUT);
+
     gpio_pinMode(S_IN, INPUT_PULLUP);
     gpio_pinMode(S_OUT, INPUT_PULLUP);
     gpio_pinMode(BTN_ENC, INPUT_PULLUP);
-    gpio_pinMode(TEMCOR, OUTPUT);
+    gpio_pinMode(MODEP, INPUT);
+    gpio_pinMode(COOLP, INPUT);
     gpio_write(RED, HIGH);
     gpio_write(GREEN, HIGH);
     gpio_write(BLUE, HIGH);
-    gpio_write(TEMCOR, LOW);
+    //gpio_write(TEMCOR, LOW);
     gpio_write(LED_ENC, LOW);
     gpio_write(DOOR, LOW);
     gpio_write(FAN, LOW);
@@ -80,6 +85,7 @@ void init_io(void){
 #define RXD_PIN (UART_PIN_NO_CHANGE)
 #define BAUD_RATE 9600
 char *status = "";
+char dato[41] = "";
 void init_uart(void){
     uart_config_t uart_config = {
         .baud_rate = BAUD_RATE,
@@ -206,7 +212,8 @@ void app_main(void)
         if(gpio_read(BTN_ENC) == 0X00){  //encender y apagar sistema
             if(!FLAG_ENC){
                 //printf("Sistema: ON\n\r");
-                status = "SISTEMA: ON\n\r";
+                sprintf(dato, "SISTEMA: ON\n\r");
+                status = dato;//"SISTEMA: ON\n\r";
                 uart_write_bytes(UART_NUM_0, status, strlen(status));
                 vTaskDelay(10/ (( TickType_t ) 1000 / 100));
                 gpio_write(LED_ENC, HIGH);
@@ -260,14 +267,15 @@ void app_main(void)
             if(gpio_read(S_IN) == 0X00){
 
                 if(people_in < MAX_PEOPLE && TEMPCOR < MAX_TEMP && TEMPCOR > MIN_TEMP){
-                    status = "DOOR: OPEN \n\r";
+                    people_in += 1;
+                    sprintf(dato, "DOOR: OPEN PERSONAS DENTRO: %d\n\r", people_in);
+                    status = dato;
                     uart_write_bytes(UART_NUM_0, status, strlen(status));
                     vTaskDelay(10/ (( TickType_t ) 1000 / 100)); 
                     gpio_write(LED_ENC, HIGH);  
                     esp_lcd_panel_reset(panel_handle);
                     lv_label_set_text(label, "SISTEMA: ON\nDOOR: open\0");
                     vTaskDelay(5000/ (( TickType_t ) 1000 / 100));
-                    people_in += 1;
                     status = "DOOR: CLOSED\n\r";
                     uart_write_bytes(UART_NUM_0, status, strlen(status));
                     vTaskDelay(10/ (( TickType_t ) 1000 / 100));
@@ -282,11 +290,14 @@ void app_main(void)
                     lv_label_set_text(label, "SISTEMA: ON\nWe are full,\nwait\0"); 
 
                 } else if ( (TEMPCOR > MAX_TEMP || TEMPCOR < MIN_TEMP)){
-                    status = "TEMP_OUT_OF_RANGE\n\r";
+                    sprintf(dato, "TEMP_OUT_OF_RANGE TEMPCOR: %0.2f\n\r", TEMPCOR);
+                    status = dato;
                     uart_write_bytes(UART_NUM_0, status, strlen(status));
                     vTaskDelay(10/ (( TickType_t ) 1000 / 100)); 
-                    esp_lcd_panel_reset(panel_handle); 
-                    lv_label_set_text(label, "SISTEMA: ON\nTemp_out\nof_range\0");
+                    esp_lcd_panel_reset(panel_handle);
+                    sprintf(dato, "TEMP_OUT\nOF_RANGE\n TEMPCOR: %0.2f", TEMPCOR);
+                    status = dato; 
+                    lv_label_set_text(label, status);
 
                     for(int r = 0; r < 5;++r){
                         gpio_write(RED, HIGH);
@@ -310,7 +321,39 @@ void app_main(void)
                 if(people_in>0) people_in -= 1;
                 lv_label_set_text(label, "SISTEMA: ON\nDOOR: closed\0");
                 while(gpio_read(S_OUT) == 0X00);
-            }
+
+            } else if(gpio_read(MODEP) == 0X00){
+                if(MODO)
+                    MODO = false;
+                else 
+                    MODO = true;
+
+                status = MODO? "MODO: ON\n\r": "MODO: AUTO\n\r";
+                uart_write_bytes(UART_NUM_0, status, strlen(status));
+                while(gpio_read(MODEP) == 0X00);
+
+            }else if(gpio_read(COOLP) == 0X00){
+                if(COOL)
+                    COOL = false;
+                else 
+                    COOL = true;
+               status = COOL? " COOL\n\r": " HEAT\n\r";
+                uart_write_bytes(UART_NUM_0, status, strlen(status));  
+                while(gpio_read(COOLP) == 0X00);
+            }else{
+                sprintf(dato, "SISTEMA: ON\nDOOR: closed\n%0.2fC   %0.2fC", TEMPAMB, TEMPCOR);
+                status = dato;
+                lv_label_set_text(label, status);
+
+                if((!MODO && !COOL && TEMPAMB > SP)|| (!MODO && COOL && TEMPAMB < SP) || MODO) 
+                    gpio_write(FAN, HIGH);
+                else 
+                    gpio_write(FAN, LOW);
+                           
+                
+            }   
+        } else {
+            gpio_write(FAN, LOW);
         }
     }
 }
